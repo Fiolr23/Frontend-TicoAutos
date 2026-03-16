@@ -39,6 +39,9 @@ form.addEventListener("submit", async (e) => {
 
     // Guardar token para usarlo en rutas protegidas
     sessionStorage.setItem("token", data.token);
+    if (data.user?.id) {
+      sessionStorage.setItem("userId", data.user.id);
+    }
 
     setMsg(" Login exitoso", "ok");
 

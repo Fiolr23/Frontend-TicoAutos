@@ -21,9 +21,42 @@ const getToken = () => sessionStorage.getItem("token");
 const getUserId = () => sessionStorage.getItem("userId");
 const isAuthenticated = () => Boolean(getToken());
 
+const setSessionUser = (user) => {
+  const userId = user?.id || user?._id;
+  if (userId) {
+    sessionStorage.setItem("userId", userId);
+  }
+};
+
 const getAuthHeaders = (headers = {}) => {
   const token = getToken();
   return token ? { ...headers, Authorization: `Bearer ${token}` } : headers;
+};
+
+const syncSessionUser = async () => {
+  if (!getToken()) {
+    return null;
+  }
+
+  if (getUserId()) {
+    return getUserId();
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/api/auth/me`, {
+      headers: getAuthHeaders(),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      return null;
+    }
+
+    setSessionUser(data.user);
+    return getUserId();
+  } catch (_error) {
+    return null;
+  }
 };
 
 const buildImageUrl = (imagePath) => {
@@ -40,8 +73,35 @@ const buildImageUrl = (imagePath) => {
 
 const getVehicleImage = (vehicle) => buildImageUrl(vehicle.images?.[0]);
 
-const showMessagesPlaceholder = () => {
-  alert("La seccion de mensajes estara disponible mas adelante.");
+const truncateText = (value = "", maxLength = 80) => {
+  const text = `${value}`.trim();
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  return `${text.slice(0, maxLength - 3).trim()}...`;
+};
+
+const getVehicleDetailUrl = (vehicleId) => {
+  const detailPath = window.location.pathname.replace(/index\.html$/, "vehicle.html");
+  return `${window.location.origin}${detailPath}?id=${vehicleId}`;
+};
+
+const shareVehicleLink = async (vehicle) => {
+  const shareUrl = getVehicleDetailUrl(vehicle._id);
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(shareUrl);
+      window.alert("Se copio el link del vehiculo.");
+      return;
+    }
+
+    window.prompt("Copia este link del vehiculo:", shareUrl);
+  } catch (error) {
+    console.error("No se pudo copiar el link del vehiculo:", error);
+    window.prompt("Copia este link del vehiculo:", shareUrl);
+  }
 };
 
 const logout = async () => {
@@ -69,7 +129,6 @@ const bindNavigation = () => {
   const guestOnly = document.querySelectorAll("[data-auth='guest']");
   const userLabel = document.querySelector("[data-user-label]");
   const logoutButtons = document.querySelectorAll("[data-logout]");
-  const placeholderButtons = document.querySelectorAll("[data-messages-placeholder]");
 
   authOnly.forEach((element) => {
     element.hidden = !isAuthenticated();
@@ -86,22 +145,22 @@ const bindNavigation = () => {
   logoutButtons.forEach((button) => {
     button.addEventListener("click", logout);
   });
-
-  placeholderButtons.forEach((button) => {
-    button.addEventListener("click", showMessagesPlaceholder);
-  });
 };
 
 const createVehicleCard = (vehicle, options = {}) => {
   const {
     showOwner = true,
     showActions = false,
+    onShare,
     onEdit,
     onDelete,
     onSold,
   } = options;
   const card = document.createElement("article");
   card.className = "vehicle-card";
+  const statusLabel = vehicle.status === "vendido" ? "Vendido" : "Disponible";
+  const statusClass = vehicle.status === "vendido" ? "sold" : "available";
+  const description = truncateText(vehicle.description || "Vehiculo disponible para consulta.");
 
   const ownerName = vehicle.owner
     ? `${vehicle.owner.name} ${vehicle.owner.lastname}`
@@ -113,7 +172,7 @@ const createVehicleCard = (vehicle, options = {}) => {
     <a class="vehicle-card-media" href="./vehicle.html?id=${vehicle._id}">
       <img src="${getVehicleImage(vehicle)}" alt="${escapeHtml(vehicle.brand)} ${escapeHtml(vehicle.model)}" />
       <span class="vehicle-badge ${vehicle.status === "vendido" ? "sold" : ""}">
-        ${vehicle.status === "vendido" ? "Vendido" : "Disponible"}
+        ${statusLabel}
       </span>
     </a>
     <div class="vehicle-card-body">
@@ -124,22 +183,31 @@ const createVehicleCard = (vehicle, options = {}) => {
         </div>
         <strong>${formatCurrency(vehicle.price)}</strong>
       </div>
-      <div class="vehicle-meta">
-        <span>${vehicle.year}</span>
-        <span>${escapeHtml(vehicle.color)}</span>
-        <span>${escapeHtml(vehicle.location || "Costa Rica")}</span>
+      <div class="vehicle-meta-pills">
+        <span class="vehicle-pill">${vehicle.year}</span>
+        <span class="vehicle-pill">${escapeHtml(vehicle.color)}</span>
+        <span class="vehicle-pill">${escapeHtml(vehicle.location || "Costa Rica")}</span>
       </div>
       ${
         showOwner
           ? `<p class="vehicle-owner">Publicado por ${escapeHtml(ownerName)}</p>`
           : ""
       }
-      <p class="vehicle-description">${escapeHtml(vehicle.description || "Vehiculo disponible para consulta.")}</p>
+      <p class="vehicle-description">${escapeHtml(description)}</p>
       <div class="vehicle-card-actions">
         <a class="btn btn-outline" href="./vehicle.html?id=${vehicle._id}">Ver detalle</a>
       </div>
     </div>
   `;
+
+  if (onShare) {
+    const shareButton = document.createElement("button");
+    shareButton.className = "btn btn-muted";
+    shareButton.type = "button";
+    shareButton.textContent = "Compartir";
+    shareButton.addEventListener("click", () => onShare(vehicle));
+    card.querySelector(".vehicle-card-actions").append(shareButton);
+  }
 
   if (showActions) {
     const actions = document.createElement("div");
@@ -152,8 +220,7 @@ const createVehicleCard = (vehicle, options = {}) => {
 
     const soldButton = document.createElement("button");
     soldButton.className = "btn btn-muted";
-    soldButton.textContent = vehicle.status === "vendido" ? "Vendido" : "Marcar vendido";
-    soldButton.disabled = vehicle.status === "vendido";
+    soldButton.textContent = vehicle.status === "vendido" ? "Marcar disponible" : "Marcar vendido";
     soldButton.addEventListener("click", () => onSold?.(vehicle));
 
     const deleteButton = document.createElement("button");
@@ -168,10 +235,80 @@ const createVehicleCard = (vehicle, options = {}) => {
   return card;
 };
 
+const createCatalogVehicleCard = (vehicle, options = {}) => {
+  const {
+    isOwner = false,
+    onEdit,
+    onDelete,
+    onShare,
+    onToggleStatus,
+  } = options;
+
+  const card = document.createElement("article");
+  card.className = "catalog-card";
+  const statusLabel = vehicle.status === "vendido" ? "Vendido" : "Disponible";
+  const statusClass = vehicle.status === "vendido" ? "sold" : "available";
+  const description = truncateText(vehicle.description || "Vehiculo disponible para consulta.", 68);
+  const ownerActions = isOwner
+    ? `
+      <div class="catalog-owner-actions">
+        <button class="btn btn-primary" type="button" data-catalog-edit>Editar</button>
+        <button class="btn btn-muted" type="button" data-catalog-status>
+          ${vehicle.status === "vendido" ? "Marcar disponible" : "Marcar vendido"}
+        </button>
+      </div>
+      <div class="catalog-danger-row">
+        <button class="btn btn-danger" type="button" data-catalog-delete>Eliminar</button>
+      </div>
+    `
+    : `
+      <div class="catalog-buyer-actions">
+        <button class="btn btn-muted" type="button" data-catalog-share>Compartir</button>
+      </div>
+    `;
+
+  card.innerHTML = `
+    <a class="catalog-card-media" href="./vehicle.html?id=${vehicle._id}">
+      <img src="${getVehicleImage(vehicle)}" alt="${escapeHtml(vehicle.brand)} ${escapeHtml(vehicle.model)}" />
+      <span class="catalog-status ${statusClass}">${statusLabel}</span>
+    </a>
+    <div class="catalog-card-body">
+      <div class="catalog-card-head">
+        <div>
+          <p class="catalog-brand">${escapeHtml(vehicle.brand)}</p>
+          <h3>${escapeHtml(vehicle.brand)} ${escapeHtml(vehicle.model)}</h3>
+        </div>
+        <strong>${formatCurrency(vehicle.price)}</strong>
+      </div>
+      <div class="catalog-specs">
+        <span class="catalog-chip">${vehicle.year}</span>
+        <span class="catalog-chip">${escapeHtml(vehicle.color)}</span>
+        <span class="catalog-chip">${escapeHtml(vehicle.location || "Costa Rica")}</span>
+      </div>
+      <p class="catalog-description">${escapeHtml(description)}</p>
+      <div class="catalog-detail-action">
+        <a class="btn btn-outline" href="./vehicle.html?id=${vehicle._id}">Ver detalle</a>
+      </div>
+      ${ownerActions}
+    </div>
+  `;
+
+  if (isOwner) {
+    card.querySelector("[data-catalog-edit]")?.addEventListener("click", () => onEdit?.(vehicle));
+    card.querySelector("[data-catalog-status]")?.addEventListener("click", () => onToggleStatus?.(vehicle));
+    card.querySelector("[data-catalog-delete]")?.addEventListener("click", () => onDelete?.(vehicle));
+  } else {
+    card.querySelector("[data-catalog-share]")?.addEventListener("click", () => onShare?.(vehicle));
+  }
+
+  return card;
+};
+
 window.TicoAutos = {
   API_BASE,
   bindNavigation,
   buildImageUrl,
+  createCatalogVehicleCard,
   createVehicleCard,
   escapeHtml,
   formatCurrency,
@@ -180,5 +317,8 @@ window.TicoAutos = {
   getUserId,
   isAuthenticated,
   logout,
-  showMessagesPlaceholder,
+  setSessionUser,
+  shareVehicleLink,
+  syncSessionUser,
+  truncateText,
 };
