@@ -25,6 +25,8 @@ const loadProfile = async () => {
       throw new Error(meData.message || "No se pudo cargar el perfil");
     }
 
+    window.TicoAutos.setSessionUser(meData.user);
+
     const vehicles = vehiclesData.results || [];
     const soldCount = vehicles.filter((vehicle) => vehicle.status === "vendido").length;
     const availableCount = vehicles.length - soldCount;

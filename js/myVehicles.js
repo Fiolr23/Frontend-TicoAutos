@@ -54,14 +54,19 @@ const loadMyVehicles = async () => {
           loadMyVehicles();
         },
         onSold: async (item) => {
-          const soldResponse = await fetch(`${window.TicoAutos.API_BASE}/api/vehicles/${item._id}/sold`, {
+          const nextStatus = item.status === "vendido" ? "disponible" : "vendido";
+          const soldResponse = await fetch(`${window.TicoAutos.API_BASE}/api/vehicles/${item._id}/status`, {
             method: "PATCH",
-            headers: window.TicoAutos.getAuthHeaders(),
+            headers: {
+              ...window.TicoAutos.getAuthHeaders(),
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ status: nextStatus }),
           });
           const soldData = await soldResponse.json().catch(() => ({}));
 
           if (!soldResponse.ok) {
-            return alert(soldData.message || "No se pudo marcar como vendido");
+            return alert(soldData.message || "No se pudo actualizar el estado");
           }
 
           loadMyVehicles();
