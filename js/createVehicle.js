@@ -1,116 +1,101 @@
-<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TicoAutos | Publicar vehiculo</title>
-  <link rel="stylesheet" href="./css/styles.css" />
-</head>
-<body>
-  <header class="site-header shell">
-    <nav class="nav">
-      <a class="brand" href="./index.html">
-        <span class="brand-mark">T</span>
-        <span>TicoAutos</span>
-      </a>
+if (!window.TicoAutos.isAuthenticated()) {
+  window.location.href = "./login.html";
+}
 
-      <div class="nav-links">
-        <a class="nav-link" href="./index.html">Home</a>
-        <a class="nav-link" href="./myVehicles.html">Mis Vehiculos</a>
-        <a class="nav-link" href="./profile.html">Perfil</a>
-      </div>
+window.TicoAutos.bindNavigation();
 
-      <div class="nav-actions">
-        <button class="btn btn-danger" type="button" data-logout>Cerrar sesion</button>
-      </div>
-    </nav>
-  </header>
+const form = document.getElementById("vehicleForm");
+const msg = document.getElementById("vehicleMsg");
+const submitButton = document.getElementById("vehicleSubmit");
 
-  <main class="shell section">
-    <div class="section-head">
-      <div>
-        <h1>Publicar vehiculo</h1>
-        <p class="page-subtitle">Completa los datos principales y sube hasta 6 imagenes.</p>
-      </div>
-    </div>
+/**
+ * Muestra mensajes de estado reutilizando el sistema visual del formulario.
+ */
+const setMsg = (text, type = "") => {
+  msg.textContent = text;
+  msg.className = `msg ${type}`.trim();
+};
 
-    <form class="editor-grid" id="vehicleForm">
-      <section class="form-card">
-        <div class="field-grid">
-          <label>
-            Marca
-            <input type="text" name="brand" required />
-          </label>
-          <label>
-            Modelo
-            <input type="text" name="model" required />
-          </label>
-          <label>
-            Ano
-            <input type="number" name="year" min="1900" max="2100" required />
-          </label>
-          <label>
-            Precio
-            <input type="number" name="price" min="1" required />
-          </label>
-          <label>
-            Color
-            <input type="text" name="color" required />
-          </label>
-          <label>
-            Kilometraje
-            <input type="number" name="mileage" min="0" value="0" />
-          </label>
-          <label>
-            Transmision
-            <select name="transmission">
-              <option value="manual">Manual</option>
-              <option value="automatica">Automatica</option>
-              <option value="cvt">CVT</option>
-            </select>
-          </label>
-          <label>
-            Combustible
-            <select name="fuelType">
-              <option value="gasolina">Gasolina</option>
-              <option value="diesel">Diesel</option>
-              <option value="electrico">Electrico</option>
-              <option value="hibrido">Hibrido</option>
-            </select>
-          </label>
-        </div>
+/**
+ * Valida los datos mínimos requeridos antes de enviar el formulario.
+ */
+const validateVehicleForm = (formElement) => {
+  const brand = formElement.elements.namedItem("brand")?.value.trim();
+  const model = formElement.elements.namedItem("model")?.value.trim();
+  const year = Number(formElement.elements.namedItem("year")?.value);
+  const price = Number(formElement.elements.namedItem("price")?.value);
+  const color = formElement.elements.namedItem("color")?.value.trim();
+  const mileageValue = formElement.elements.namedItem("mileage")?.value;
+  const files = formElement.elements.namedItem("images")?.files || [];
 
-        <label>
-          Ubicacion
-          <input type="text" name="location" placeholder="Ej. San Jose" />
-        </label>
+  if (!brand || !model || !color) {
+    return "Marca, modelo y color son obligatorios";
+  }
 
-        <label>
-          Descripcion
-          <textarea name="description" rows="5" placeholder="Describe el estado, extras y cualquier detalle importante"></textarea>
-        </label>
-      </section>
+  if (!Number.isFinite(year) || year < 1900 || year > new Date().getFullYear() + 1) {
+    return "El año del vehiculo es invalido";
+  }
 
-      <aside class="form-card">
-        <h2>Imagenes</h2>
-        <p class="page-subtitle">Debes subir al menos una imagen.</p>
+  if (!Number.isFinite(price) || price <= 0) {
+    return "El precio debe ser mayor a 0";
+  }
 
-        <label class="file-field">
-          Seleccionar imagenes
-          <input type="file" name="images" accept="image/png,image/jpeg,image/webp" multiple required />
-        </label>
+  // El kilometraje es opcional, pero si viene informado debe ser un numero valido.
+  if (mileageValue !== "" && (!Number.isFinite(Number(mileageValue)) || Number(mileageValue) < 0)) {
+    return "El kilometraje es invalido";
+  }
 
-        <p class="msg" id="vehicleMsg" aria-live="polite"></p>
+  if (!files.length) {
+    return "Debes subir al menos una imagen";
+  }
 
-        <div class="inline-actions">
-          <button class="btn btn-primary" type="submit" id="vehicleSubmit">Publicar vehiculo</button>
-          <a class="btn btn-outline" href="./myVehicles.html">Cancelar</a>
-        </div>
-      </aside>
-    </form>
-  </main>
+  if (files.length > 6) {
+    return "Solo puedes subir hasta 6 imagenes";
+  }
 
-  <script src="./js/app.js"></script>
-  <script src="./js/createVehicle.js"></script>
-</body>
-</html>
+  return "";
+};
+
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  setMsg("");
+
+  const validationError = validateVehicleForm(form);
+  if (validationError) {
+    setMsg(validationError, "err");
+    return;
+  }
+
+  submitButton.disabled = true;
+  submitButton.textContent = "Publicando...";
+
+  try {
+    // envia texto e imagenes en una sola solicitud multipart/form-data.
+    const formData = new FormData(form);
+
+    const response = await fetch(`${window.TicoAutos.API_BASE}/api/vehicles`, {
+      method: "POST",
+      headers: window.TicoAutos.getAuthHeaders(),
+      body: formData,
+    });
+    
+    // Si la respuesta no es JSON valido, evitamos que falle el flujo del catch secundario.
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data.message || "No se pudo publicar el vehiculo");
+    }
+
+    setMsg("Vehiculo publicado correctamente", "ok");
+
+    window.setTimeout(() => {
+      window.location.href = `./vehicle.html?id=${data._id}`;
+    }, 700);
+  } catch (error) {
+    console.error(error);
+    setMsg(error.message || "No se pudo publicar el vehiculo", "err");
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "Publicar vehiculo";
+  }
+});
