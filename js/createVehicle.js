@@ -1,47 +1,116 @@
-if (!window.TicoAutos.isAuthenticated()) {
-  window.location.href = "./login.html";
-}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TicoAutos | Publicar vehiculo</title>
+  <link rel="stylesheet" href="./css/styles.css" />
+</head>
+<body>
+  <header class="site-header shell">
+    <nav class="nav">
+      <a class="brand" href="./index.html">
+        <span class="brand-mark">T</span>
+        <span>TicoAutos</span>
+      </a>
 
-window.TicoAutos.bindNavigation();
+      <div class="nav-links">
+        <a class="nav-link" href="./index.html">Home</a>
+        <a class="nav-link" href="./myVehicles.html">Mis Vehiculos</a>
+        <a class="nav-link" href="./profile.html">Perfil</a>
+      </div>
 
-const form = document.getElementById("vehicleForm");
-const msg = document.getElementById("vehicleMsg");
-const submitButton = document.getElementById("vehicleSubmit");
+      <div class="nav-actions">
+        <button class="btn btn-danger" type="button" data-logout>Cerrar sesion</button>
+      </div>
+    </nav>
+  </header>
 
-const setMsg = (text, type = "") => {
-  msg.textContent = text;
-  msg.className = `msg ${type}`.trim();
-};
+  <main class="shell section">
+    <div class="section-head">
+      <div>
+        <h1>Publicar vehiculo</h1>
+        <p class="page-subtitle">Completa los datos principales y sube hasta 6 imagenes.</p>
+      </div>
+    </div>
 
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  setMsg("");
+    <form class="editor-grid" id="vehicleForm">
+      <section class="form-card">
+        <div class="field-grid">
+          <label>
+            Marca
+            <input type="text" name="brand" required />
+          </label>
+          <label>
+            Modelo
+            <input type="text" name="model" required />
+          </label>
+          <label>
+            Ano
+            <input type="number" name="year" min="1900" max="2100" required />
+          </label>
+          <label>
+            Precio
+            <input type="number" name="price" min="1" required />
+          </label>
+          <label>
+            Color
+            <input type="text" name="color" required />
+          </label>
+          <label>
+            Kilometraje
+            <input type="number" name="mileage" min="0" value="0" />
+          </label>
+          <label>
+            Transmision
+            <select name="transmission">
+              <option value="manual">Manual</option>
+              <option value="automatica">Automatica</option>
+              <option value="cvt">CVT</option>
+            </select>
+          </label>
+          <label>
+            Combustible
+            <select name="fuelType">
+              <option value="gasolina">Gasolina</option>
+              <option value="diesel">Diesel</option>
+              <option value="electrico">Electrico</option>
+              <option value="hibrido">Hibrido</option>
+            </select>
+          </label>
+        </div>
 
-  submitButton.disabled = true;
-  submitButton.textContent = "Publicando...";
+        <label>
+          Ubicacion
+          <input type="text" name="location" placeholder="Ej. San Jose" />
+        </label>
 
-  try {
-    const formData = new FormData(form);
-    const response = await fetch(`${window.TicoAutos.API_BASE}/api/vehicles`, {
-      method: "POST",
-      headers: window.TicoAutos.getAuthHeaders(),
-      body: formData,
-    });
+        <label>
+          Descripcion
+          <textarea name="description" rows="5" placeholder="Describe el estado, extras y cualquier detalle importante"></textarea>
+        </label>
+      </section>
 
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(data.message || "No se pudo publicar el vehiculo");
-    }
+      <aside class="form-card">
+        <h2>Imagenes</h2>
+        <p class="page-subtitle">Debes subir al menos una imagen.</p>
 
-    setMsg("Vehiculo publicado correctamente", "ok");
-    window.setTimeout(() => {
-      window.location.href = "./myVehicles.html";
-    }, 700);
-  } catch (error) {
-    console.error(error);
-    setMsg(error.message || "No se pudo publicar el vehiculo", "err");
-  } finally {
-    submitButton.disabled = false;
-    submitButton.textContent = "Publicar vehiculo";
-  }
-});
+        <label class="file-field">
+          Seleccionar imagenes
+          <input type="file" name="images" accept="image/png,image/jpeg,image/webp" multiple required />
+        </label>
+
+        <p class="msg" id="vehicleMsg" aria-live="polite"></p>
+
+        <div class="inline-actions">
+          <button class="btn btn-primary" type="submit" id="vehicleSubmit">Publicar vehiculo</button>
+          <a class="btn btn-outline" href="./myVehicles.html">Cancelar</a>
+        </div>
+      </aside>
+    </form>
+  </main>
+
+  <script src="./js/app.js"></script>
+  <script src="./js/createVehicle.js"></script>
+</body>
+</html>
