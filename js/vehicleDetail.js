@@ -53,8 +53,10 @@ const loadVehicleDetail = async () => {
     }
 
     const owner = vehicle.owner || vehicle.userId;
-    const isOwner = window.TicoAutos.getUserId() === owner?._id;
+    const currentUserId = await window.TicoAutos.syncSessionUser();
+    const isOwner = currentUserId === owner?._id;
     const statusClass = vehicle.status === "vendido" ? "sold" : "available";
+    const buyerAction = '<button class="btn btn-outline" type="button">Enviar mensaje</button>';
 
     container.innerHTML = `
       <div class="detail-layout">
@@ -91,7 +93,7 @@ const loadVehicleDetail = async () => {
             ${
               isOwner
                 ? `<a class="btn btn-outline" href="./editVehicle.html?id=${vehicle._id}">Editar publicacion</a>`
-                : `<button class="btn btn-outline" type="button" data-messages-placeholder>Mensajes</button>`
+                : buyerAction
             }
           </div>
         </aside>
@@ -99,9 +101,6 @@ const loadVehicleDetail = async () => {
     `;
 
     bindGallery(vehicle.images);
-    document.querySelectorAll("[data-messages-placeholder]").forEach((button) => {
-      button.addEventListener("click", window.TicoAutos.showMessagesPlaceholder);
-    });
   } catch (error) {
     console.error(error);
     container.innerHTML =
