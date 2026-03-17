@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TicoAutos | Perfil</title>
+  <title>TicoAutos | Chats</title>
   <link rel="stylesheet" href="./css/styles.css" />
 </head>
 <body>
@@ -16,11 +16,9 @@
 
       <div class="nav-links">
         <a class="nav-link" href="./index.html">Home</a>
-        <a class="nav-link" href="./index.html#catalogo">Vehiculos</a>
-        <a class="nav-link" href="./createVehicle.html">Publicar Vehiculo</a>
         <a class="nav-link" href="./myVehicles.html">Mis Vehiculos</a>
+        <a class="nav-link" href="./chats.html">Chats</a>
         <a class="nav-link" href="./profile.html">Perfil</a>
-        <a class="nav-link" href="./chats.html" data-auth="private">Chats</a>
       </div>
 
       <div class="nav-actions">
@@ -32,21 +30,35 @@
   <main class="shell section">
     <div class="section-head">
       <div>
-        <h1>Perfil</h1>
-        <p class="page-subtitle">Consulta tu informacion y el resumen de tus publicaciones.</p>
+        <h1>Chats por vehiculo</h1>
+        <p class="page-subtitle">
+          Consulta las conversaciones agrupadas por publicacion y abre el detalle de cada una.
+        </p>
       </div>
     </div>
 
-    <div class="profile-grid">
-      <section class="profile-card" id="profileCard"></section>
-      <section class="stats-card">
-        <h2>Resumen</h2>
-        <div class="stats-grid" id="profileStats"></div>
-      </section>
-    </div>
+    <section class="section">
+      <div class="section-head">
+        <div>
+          <h2>Chats como interesado</h2>
+          <p class="page-subtitle">Vehiculos sobre los que has realizado preguntas.</p>
+        </div>
+      </div>
+      <div id="buyerChatsList"></div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div>
+          <h2>Chats en mis vehiculos</h2>
+          <p class="page-subtitle">Consultas recibidas en tus publicaciones.</p>
+        </div>
+      </div>
+      <div id="ownerChatsList"></div>
+    </section>
   </main>
 
   <script src="./js/app.js"></script>
-  <script src="./js/profile.js"></script>
+  <script src="./js/chats.js"></script>
 </body>
 </html>
