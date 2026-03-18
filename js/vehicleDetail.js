@@ -11,9 +11,9 @@ if (!vehicleId) {
   container.innerHTML = '<div class="empty-state">No fue posible identificar el vehiculo solicitado.</div>';
 }
 
-// Genera el HTML de la galería de imágenes del vehículo.
+// Genera el HTML de la galería de imágenes.
 const renderGallery = (images) => {
-  // Si no hay imágenes, se usa un valor nulo para evitar errores.
+  // Si no hay imágenes, se usa un valor por defecto.
   const validImages = images?.length ? images : [null];
 
   return `
@@ -43,7 +43,7 @@ const renderGallery = (images) => {
   `;
 };
 
-// Vincula los botones de la galería para cambiar la imagen principal.
+// Vincula los eventos de la galería para cambiar la imagen principal.
 const bindGallery = (images) => {
   const validImages = images?.length ? images : [null];
   const mainImage = document.getElementById("mainVehicleImage");
@@ -56,26 +56,27 @@ const bindGallery = (images) => {
   });
 };
 
-// Carga la información detallada del vehículo desde el backend.
+// Carga el detalle del vehículo desde el backend.
 const loadVehicleDetail = async () => {
   try {
     const response = await fetch(`${window.TicoAutos.API_BASE}/api/vehicles/${vehicleId}`);
     const vehicle = await response.json().catch(() => ({}));
 
-    // Si la respuesta del servidor no es correcta, lanza un error.
+    // Valida si la respuesta del servidor fue exitosa.
     if (!response.ok) {
       throw new Error(vehicle.message || "No fue posible cargar la informacion del vehiculo.");
     }
 
     const owner = vehicle.owner || vehicle.userId;
 
-    // Obtiene el usuario actual para saber si es el propietario.
+    // Obtiene el usuario actual para determinar si es el propietario.
     const currentUserId = await window.TicoAutos.syncSessionUser();
     const isOwner = currentUserId === owner?._id;
 
-    // Determina la clase visual del estado del vehículo.
+    // Define clase visual según estado del vehículo.
     const statusClass = vehicle.status === "vendido" ? "sold" : "available";
 
+    // Renderiza el detalle completo del vehículo.
     container.innerHTML = `
       <div class="detail-layout">
         <section class="detail-panel">
@@ -118,19 +119,18 @@ const loadVehicleDetail = async () => {
             ${
               isOwner
                 ? `<a class="btn btn-outline" href="./editVehicle.html?id=${vehicle._id}">Editar publicacion</a>`
-                : `<a class="btn btn-outline" href="./chat.html?id=${vehicle._id}">Enviar mensaje</a>`
+                : `<a class="btn btn-outline" href="./chat.html?vehicleId=${vehicle._id}">Enviar mensaje</a>`
             }
           </div>
         </aside>
       </div>
     `;
 
-    // Activa la funcionalidad de la galería después de renderizarla.
+    // Activa la galería después de renderizarla.
     bindGallery(vehicle.images);
   } catch (error) {
     console.error(error);
-    container.innerHTML =
-      '<div class="empty-state">No fue posible cargar el detalle del vehiculo.</div>';
+    container.innerHTML = '<div class="empty-state">No fue posible cargar el detalle del vehiculo.</div>';
   }
 };
 
