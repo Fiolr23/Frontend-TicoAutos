@@ -1,280 +1,268 @@
-// Redirige al login si el usuario no ha iniciado sesión.
-if (!window.TicoAutos.isAuthenticated()) { 
+// Redirige al login si el usuario no está autenticado.
+if (!window.TicoAutos.isAuthenticated()) {
   window.location.href = "./login.html";
 }
 
-// Activa la navegación compartida de la aplicación.
+// Activa la navegación general del sistema.
 window.TicoAutos.bindNavigation();
 
-// Obtiene el id del vehículo desde la URL.
+// Obtiene parámetros desde la URL.
 const params = new URLSearchParams(window.location.search);
-const vehicleId = params.get("id");
+let conversationId = params.get("conversationId");
+let vehicleId = params.get("vehicleId") || params.get("id");
 
 const chatHeader = document.getElementById("chatHeader");
 const chatThread = document.getElementById("chatThread");
 
-// Formatea fechas en formato local de Costa Rica.
+// Formatea fechas al formato local de Costa Rica.
 const formatDate = (value) => {
-  if (!value) {
-    return "Sin registro";
-  }
+  if (!value) return "Sin registro";
 
   return new Intl.DateTimeFormat("es-CR", {
-    dateStyle: "medium",
+    dateStyle: "short",
     timeStyle: "short",
   }).format(new Date(value));
 };
 
-// Muestra mensajes inline en un elemento del DOM.
-const setInlineMessage = (element, text, type = "") => {
-  if (!element) {
-    return;
-  }
-
+// Muestra mensajes de estado en el DOM.
+const setMessage = (element, text, type = "") => {
+  if (!element) return;
   element.textContent = text;
   element.className = `msg ${type}`.trim();
 };
 
-// Genera el HTML de una burbuja de pregunta/respuesta.
-const renderQuestionBubble = (question, isOwner) => `
-  <article class="form-card">
-    <p><strong>Pregunta:</strong> ${window.TicoAutos.escapeHtml(question.questionText)}</p>
-    <p class="muted">
-      Realizada por:
-      ${window.TicoAutos.escapeHtml(question.askedByUserId?.name || "")}
-      ${window.TicoAutos.escapeHtml(question.askedByUserId?.lastname || "")}
-    </p>
-    <p class="muted">Fecha de pregunta: ${formatDate(question.askedAt)}</p>
+// Actualiza la URL del navegador con el conversationId.
+const updateUrl = () => {
+  if (!conversationId) return;
 
-    ${
-      question.status === "answered"
-        ? `
-          <p><strong>Respuesta:</strong> ${window.TicoAutos.escapeHtml(question.answerText)}</p>
-          <p class="muted">
-            Respondida por:
-            ${window.TicoAutos.escapeHtml(question.answeredByUserId?.name || "")}
-            ${window.TicoAutos.escapeHtml(question.answeredByUserId?.lastname || "")}
-          </p>
-          <p class="muted">Fecha de respuesta: ${formatDate(question.answeredAt)}</p>
-        `
-        : '<p class="muted">Estado actual: Pendiente de respuesta.</p>'
-    }
+  const url = new URL(window.location.href);
+  url.searchParams.delete("id");
+  url.searchParams.delete("vehicleId");
+  url.searchParams.set("conversationId", conversationId);
+  window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+};
 
-    ${
-      isOwner && question.status === "pending"
-        ? `
-          <form data-answer-form="${question._id}">
-            <label>
-              Respuesta
-              <textarea
-                name="answerText"
-                rows="3"
-                placeholder="Escribe una respuesta clara para el interesado"
-                required
-              ></textarea>
-            </label>
-            <p class="msg" data-answer-msg="${question._id}" aria-live="polite"></p>
-            <div class="inline-actions">
-              <button class="btn btn-primary" type="submit">Responder</button>
-            </div>
-          </form>
-        `
-        : ""
-    }
-  </article>
+// Genera una burbuja de mensaje (pregunta o respuesta).
+const bubble = (text, date, direction, status = "") => `
+  <div class="chat-message ${direction}">
+    <div class="chat-bubble">
+      <p class="chat-text">${window.TicoAutos.escapeHtml(text)}</p>
+      <div class="chat-meta">
+        <span>${formatDate(date)}</span>
+        ${status ? `<span>${window.TicoAutos.escapeHtml(status)}</span>` : ""}
+      </div>
+    </div>
+  </div>
 `;
 
-// Vincula los formularios de respuesta para el propietario del vehículo.
-const bindAnswerForms = (vehicleIdValue, isOwner) => {
-  if (!isOwner) {
-    return;
+// Renderiza todos los mensajes del chat.
+const renderMessages = (questions, isOwner) => {
+  if (!questions.length) {
+    return '<div class="empty-state">Todavia no existen mensajes en este chat.</div>';
   }
 
-  chatThread.querySelectorAll("[data-answer-form]").forEach((form) => {
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
+  return questions
+    .map((question) => {
+      // Burbuja de la pregunta.
+      const questionHtml = bubble(
+        question.questionText,
+        question.askedAt,
+        isOwner ? "incoming" : "outgoing",
+        question.status === "pending" ? "Pendiente" : "Respondida"
+      );
 
-      const questionId = form.dataset.answerForm;
-      const formData = new FormData(form);
-      const answerText = `${formData.get("answerText") || ""}`.trim();
-      const answerMsg = document.querySelector(`[data-answer-msg="${questionId}"]`);
+      // Burbuja de la respuesta (si existe).
+      const answerHtml =
+        question.status === "answered"
+          ? bubble(
+              question.answerText,
+              question.answeredAt,
+              isOwner ? "outgoing" : "incoming"
+            )
+          : "";
 
-      // Valida que la respuesta no vaya vacía.
-      if (!answerText) {
-        setInlineMessage(answerMsg, "Debes ingresar una respuesta antes de enviarla.", "err");
-        return;
-      }
-
-      try {
-        const response = await fetch(`${window.TicoAutos.API_BASE}/api/questions/${questionId}/answer`, {
-          method: "POST",
-          headers: {
-            ...window.TicoAutos.getAuthHeaders(),
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ answerText }),
-        });
-        const data = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          throw new Error(data.message || "No fue posible registrar la respuesta.");
-        }
-
-        // Recarga el chat para reflejar la respuesta guardada.
-        await loadChat(vehicleIdValue);
-      } catch (error) {
-        setInlineMessage(answerMsg, error.message || "No fue posible registrar la respuesta.", "err");
-      }
-    });
-  });
+      return `<article class="chat-pair">${questionHtml}${answerHtml}</article>`;
+    })
+    .join("");
 };
 
-// Vincula el formulario para crear una nueva pregunta.
-const bindAskForm = (vehicleIdValue, canAsk) => {
-  const form = document.getElementById("askQuestionForm");
-  const questionMsg = document.getElementById("questionMsg");
-
-  if (!form || !canAsk) {
-    return;
+// Determina el endpoint según el tipo de chat.
+const getEndpoint = () => {
+  if (conversationId) {
+    return `${window.TicoAutos.API_BASE}/api/questions/conversations/${conversationId}/messages`;
   }
 
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    setInlineMessage(questionMsg, "");
+  if (vehicleId) {
+    return `${window.TicoAutos.API_BASE}/api/questions/vehicle/${vehicleId}/conversation`;
+  }
 
-    const formData = new FormData(form);
-    const questionText = `${formData.get("questionText") || ""}`.trim();
-
-    // Valida que la pregunta no vaya vacía.
-    if (!questionText) {
-      setInlineMessage(questionMsg, "Debes ingresar una pregunta antes de enviarla.", "err");
-      return;
-    }
-
-    try {
-      const response = await fetch(`${window.TicoAutos.API_BASE}/api/questions/vehicle/${vehicleIdValue}`, {
-        method: "POST",
-        headers: {
-          ...window.TicoAutos.getAuthHeaders(),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ questionText }),
-      });
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.message || "No fue posible registrar la pregunta.");
-      }
-
-      // Recarga el chat para mostrar la nueva pregunta.
-      await loadChat(vehicleIdValue);
-    } catch (error) {
-      setInlineMessage(questionMsg, error.message || "No fue posible registrar la pregunta.", "err");
-    }
-  });
+  return null;
 };
 
-// Carga toda la información del chat de un vehículo.
-const loadChat = async (vehicleIdValue) => {
-  if (!vehicleIdValue) {
+// Carga la información completa del chat.
+const loadChat = async () => {
+  const endpoint = getEndpoint();
+
+  // Si no hay endpoint válido, muestra error.
+  if (!endpoint) {
     chatHeader.innerHTML = '<div class="empty-state">No fue posible identificar el chat solicitado.</div>';
     chatThread.innerHTML = "";
     return;
   }
 
-  chatHeader.innerHTML = '<div class="empty-state">Cargando informacion del chat...</div>';
+  chatHeader.innerHTML = '<div class="empty-state">Cargando chat...</div>';
   chatThread.innerHTML = "";
 
   try {
-    const response = await fetch(`${window.TicoAutos.API_BASE}/api/questions/vehicle/${vehicleIdValue}`, {
+    const response = await fetch(endpoint, {
       headers: window.TicoAutos.getAuthHeaders(),
     });
+
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(data.message || "No fue posible cargar el chat del vehiculo.");
+      throw new Error(data.message || "No fue posible cargar el chat.");
     }
 
+    const conversation = data.conversation || null;
     const vehicle = data.vehicle || {};
+    const otherUser = data.otherUser || {};
     const isOwner = Boolean(data.isOwner);
     const questions = data.results || [];
 
-    // Renderiza el encabezado principal del chat.
+    // Actualiza el conversationId si viene del backend.
+    if (conversation?._id) {
+      conversationId = conversation._id;
+      updateUrl();
+    }
+
+    // Actualiza el vehicleId si viene del backend.
+    if (vehicle?._id) {
+      vehicleId = vehicle._id;
+    }
+
+    const userName = `${otherUser.name || ""} ${otherUser.lastname || ""}`.trim() || "Usuario";
+    const vehicleName = `${vehicle.brand || "Vehiculo"} ${vehicle.model || ""}`.trim();
+
+    // Busca la última pregunta pendiente.
+    const pendingQuestion = [...questions].reverse().find((question) => question.status === "pending");
+
+    // Renderiza el encabezado del chat.
     chatHeader.innerHTML = `
-      <div class="section-head">
-        <div>
-          <h1>Chat de ${window.TicoAutos.escapeHtml(vehicle.brand || "Vehiculo")} ${window.TicoAutos.escapeHtml(vehicle.model || "")}</h1>
-          <p class="page-subtitle">
-            ${isOwner
-              ? "Estas visualizando las consultas recibidas en este vehiculo."
-              : "Estas visualizando tus preguntas y respuestas sobre este vehiculo."}
-          </p>
+      <div class="chat-topbar">
+        <div class="chat-topbar-avatar">${userName.charAt(0).toUpperCase()}</div>
+        <div class="chat-topbar-info">
+          <h1>${window.TicoAutos.escapeHtml(userName)}</h1>
+          <p>${window.TicoAutos.escapeHtml(vehicleName)}</p>
         </div>
         <div class="inline-actions">
-          <a class="btn btn-outline" href="./vehicle.html?id=${vehicle._id}">Ver vehiculo</a>
-          <a class="btn btn-outline" href="./history.html?id=${vehicle._id}">Ver historial</a>
-          <a class="btn btn-outline" href="./chats.html">Volver a chats</a>
+          ${
+            conversationId
+              ? `<a class="btn btn-outline" href="./history.html?conversationId=${conversationId}">Historial</a>`
+              : ""
+          }
+          <a class="btn btn-outline" href="./chats.html">Volver</a>
         </div>
       </div>
     `;
 
-    // El interesado solo puede volver a preguntar si no tiene una pregunta pendiente.
-    const askFormHtml = !isOwner
-      ? `
-        <div class="form-card">
-          <h2>Nueva pregunta</h2>
-          <form id="askQuestionForm">
-            <label>
-              Tu pregunta
-              <textarea
-                name="questionText"
-                rows="4"
-                placeholder="Escribe tu consulta sobre este vehiculo"
-                ${data.canAsk ? "" : "disabled"}
-                required
-              ></textarea>
-            </label>
-            <p class="msg" id="questionMsg" aria-live="polite"></p>
-            <div class="inline-actions">
-              <button class="btn btn-primary" type="submit" ${data.canAsk ? "" : "disabled"}>
-                Enviar pregunta
-              </button>
-            </div>
-            ${
-              data.canAsk
-                ? ""
-                : '<p class="muted">Debes esperar la respuesta del propietario antes de enviar una nueva pregunta.</p>'
-            }
-          </form>
-        </div>
-      `
-      : "";
-
-    // Renderiza el formulario de pregunta y la conversación completa.
+    // Renderiza mensajes y formulario según el rol del usuario.
     chatThread.innerHTML = `
-      ${askFormHtml}
-
-      <section class="section">
-        <div class="section-head">
-          <div>
-            <h2>Conversacion</h2>
-            <p class="page-subtitle">Mensajes registrados para este vehiculo.</p>
-          </div>
+      <div class="chat-shell">
+        <div class="chat-messages">
+          ${renderMessages(questions, isOwner)}
         </div>
-
-        <div class="questions-list">
+        <div class="chat-composer-wrap">
           ${
-            questions.length
-              ? questions.map((question) => renderQuestionBubble(question, isOwner)).join("")
-              : '<div class="empty-state">Todavia no existen mensajes registrados en este chat.</div>'
+            isOwner
+              ? pendingQuestion
+                ? `
+                  <form id="chatForm" class="chat-composer" data-mode="answer" data-question-id="${pendingQuestion._id}">
+                    <textarea name="text" rows="2" placeholder="Escribe tu respuesta..." required></textarea>
+                    <button class="btn btn-primary" type="submit">Enviar</button>
+                    <p class="msg" id="chatMsg" aria-live="polite"></p>
+                  </form>
+                `
+                : `<div class="chat-composer-disabled">No hay preguntas pendientes por responder.</div>`
+              : `
+                <form id="chatForm" class="chat-composer" data-mode="question">
+                  <textarea
+                    name="text"
+                    rows="2"
+                    placeholder="Escribe tu mensaje..."
+                    ${data.canAsk ? "" : "disabled"}
+                    required
+                  ></textarea>
+                  <button class="btn btn-primary" type="submit" ${data.canAsk ? "" : "disabled"}>
+                    Enviar
+                  </button>
+                  <p class="msg" id="chatMsg" aria-live="polite"></p>
+                </form>
+                ${
+                  data.canAsk
+                    ? ""
+                    : '<div class="chat-composer-disabled">Debes esperar la respuesta del propietario antes de volver a preguntar.</div>'
+                }
+              `
           }
         </div>
-      </section>
+      </div>
     `;
 
-    // Vuelve a enlazar eventos después de renderizar el HTML dinámico.
-    bindAskForm(vehicleIdValue, data.canAsk);
-    bindAnswerForms(vehicleIdValue, isOwner);
+    const form = document.getElementById("chatForm");
+    const msg = document.getElementById("chatMsg");
+
+    if (!form) return;
+
+    // Maneja el envío de mensajes (pregunta o respuesta).
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const formData = new FormData(form);
+      const text = `${formData.get("text") || ""}`.trim();
+
+      if (!text) {
+        setMessage(msg, "Debes escribir un mensaje.", "err");
+        return;
+      }
+
+      try {
+        const isAnswer = form.dataset.mode === "answer";
+
+        // Define endpoint y cuerpo según el tipo de mensaje.
+        const url = isAnswer
+          ? `${window.TicoAutos.API_BASE}/api/questions/${form.dataset.questionId}/answer`
+          : `${window.TicoAutos.API_BASE}/api/questions/vehicle/${vehicleId}`;
+
+        const body = isAnswer ? { answerText: text } : { questionText: text };
+
+        const sendResponse = await fetch(url, {
+          method: "POST",
+          headers: {
+            ...window.TicoAutos.getAuthHeaders(),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        });
+
+        const sendData = await sendResponse.json().catch(() => ({}));
+
+        if (!sendResponse.ok) {
+          throw new Error(sendData.message || "No fue posible enviar el mensaje.");
+        }
+
+        // Actualiza el conversationId si se crea una nueva conversación.
+        if (sendData.conversationId) {
+          conversationId = sendData.conversationId;
+          updateUrl();
+        }
+
+        // Recarga el chat para reflejar cambios.
+        await loadChat();
+      } catch (error) {
+        setMessage(msg, error.message || "No fue posible enviar el mensaje.", "err");
+      }
+    });
   } catch (error) {
     console.error(error);
     chatHeader.innerHTML = '<div class="empty-state">No fue posible cargar el chat solicitado.</div>';
@@ -282,4 +270,4 @@ const loadChat = async (vehicleIdValue) => {
   }
 };
 
-loadChat(vehicleId);
+loadChat();
