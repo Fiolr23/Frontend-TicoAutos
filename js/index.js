@@ -4,6 +4,7 @@ const form = document.getElementById("catalogFilters");
 const summary = document.getElementById("catalogSummary");
 const list = document.getElementById("catalogList");
 
+// Lee los filtros del formulario y los convierte en query params.
 const readFilters = () => {
   const formData = new FormData(form);
   const params = new URLSearchParams();
@@ -19,6 +20,7 @@ const readFilters = () => {
   return params;
 };
 
+// Restaura los filtros desde la url para compartir busquedas.
 const fillFiltersFromUrl = () => {
   const params = new URLSearchParams(window.location.search);
 
@@ -30,6 +32,37 @@ const fillFiltersFromUrl = () => {
   });
 };
 
+// DELETE /api/vehicles/:id
+const deleteVehicleRequest = async (vehicleId) => {
+  const response = await fetch(`${window.TicoAutos.API_BASE}/api/vehicles/${vehicleId}`, {
+    method: "DELETE",
+    headers: window.TicoAutos.getAuthHeaders(),
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.message || "No se pudo eliminar");
+  }
+};
+
+// PATCH /api/vehicles/:id/status
+const updateVehicleStatusRequest = async (vehicleId, status) => {
+  const response = await fetch(`${window.TicoAutos.API_BASE}/api/vehicles/${vehicleId}/status`, {
+    method: "PATCH",
+    headers: {
+      ...window.TicoAutos.getAuthHeaders(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ status }),
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.message || "No se pudo actualizar el estado");
+  }
+};
+
+// Renderiza el catalogo y decide si el usuario puede administrar cada tarjeta.
 const renderVehicles = (vehicles, currentUserId) => {
   list.innerHTML = "";
 
@@ -53,38 +86,25 @@ const renderVehicles = (vehicles, currentUserId) => {
           return;
         }
 
-        const deleteResponse = await fetch(`${window.TicoAutos.API_BASE}/api/vehicles/${item._id}`, {
-          method: "DELETE",
-          headers: window.TicoAutos.getAuthHeaders(),
-        });
-        const deleteData = await deleteResponse.json().catch(() => ({}));
-
-        if (!deleteResponse.ok) {
-          return window.alert(deleteData.message || "No se pudo eliminar");
+        try {
+          await deleteVehicleRequest(item._id);
+          loadVehicles(readFilters());
+        } catch (error) {
+          window.alert(error.message || "No se pudo eliminar");
         }
-
-        loadVehicles(readFilters());
       },
       onShare: (item) => {
         window.TicoAutos.shareVehicleLink(item);
       },
       onToggleStatus: async (item) => {
         const nextStatus = item.status === "vendido" ? "disponible" : "vendido";
-        const statusResponse = await fetch(`${window.TicoAutos.API_BASE}/api/vehicles/${item._id}/status`, {
-          method: "PATCH",
-          headers: {
-            ...window.TicoAutos.getAuthHeaders(),
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ status: nextStatus }),
-        });
-        const statusData = await statusResponse.json().catch(() => ({}));
 
-        if (!statusResponse.ok) {
-          return window.alert(statusData.message || "No se pudo actualizar el estado");
+        try {
+          await updateVehicleStatusRequest(item._id, nextStatus);
+          loadVehicles(readFilters());
+        } catch (error) {
+          window.alert(error.message || "No se pudo actualizar el estado");
         }
-
-        loadVehicles(readFilters());
       },
     });
 
@@ -92,6 +112,7 @@ const renderVehicles = (vehicles, currentUserId) => {
   });
 };
 
+// GET /api/vehicles
 const loadVehicles = async (params = readFilters()) => {
   list.innerHTML = '<div class="empty-state">Cargando vehiculos...</div>';
   summary.textContent = "Consultando catalogo";
@@ -119,11 +140,13 @@ const loadVehicles = async (params = readFilters()) => {
   }
 };
 
+// Aplica los filtros elegidos por el usuario.
 form.addEventListener("submit", (event) => {
   event.preventDefault();
   loadVehicles(readFilters());
 });
 
+// Limpia filtros y vuelve a consultar el catalogo completo.
 form.addEventListener("reset", () => {
   window.setTimeout(() => {
     loadVehicles(new URLSearchParams({ limit: "12" }));

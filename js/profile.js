@@ -7,23 +7,41 @@ window.TicoAutos.bindNavigation();
 const profileCard = document.getElementById("profileCard");
 const profileStats = document.getElementById("profileStats");
 
+// GET /api/auth/me
+const fetchCurrentUser = async () => {
+  const response = await fetch(`${window.TicoAutos.API_BASE}/api/auth/me`, {
+    headers: window.TicoAutos.getAuthHeaders(),
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.message || "No se pudo cargar el perfil");
+  }
+
+  return data;
+};
+
+// GET /api/vehicles/mine
+const fetchMyVehicles = async () => {
+  const response = await fetch(`${window.TicoAutos.API_BASE}/api/vehicles/mine?limit=50`, {
+    headers: window.TicoAutos.getAuthHeaders(),
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.message || "No se pudieron cargar tus vehiculos");
+  }
+
+  return data;
+};
+
+// Carga perfil y resumen de publicaciones del usuario autenticado.
 const loadProfile = async () => {
   try {
-    const [meResponse, vehiclesResponse] = await Promise.all([
-      fetch(`${window.TicoAutos.API_BASE}/api/auth/me`, {
-        headers: window.TicoAutos.getAuthHeaders(),
-      }),
-      fetch(`${window.TicoAutos.API_BASE}/api/vehicles/mine?limit=50`, {
-        headers: window.TicoAutos.getAuthHeaders(),
-      }),
+    const [meData, vehiclesData] = await Promise.all([
+      fetchCurrentUser(),
+      fetchMyVehicles(),
     ]);
-
-    const meData = await meResponse.json().catch(() => ({}));
-    const vehiclesData = await vehiclesResponse.json().catch(() => ({}));
-
-    if (!meResponse.ok) {
-      throw new Error(meData.message || "No se pudo cargar el perfil");
-    }
 
     window.TicoAutos.setSessionUser(meData.user);
 

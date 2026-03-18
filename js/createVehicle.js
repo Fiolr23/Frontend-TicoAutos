@@ -86,11 +86,10 @@ form.addEventListener("submit", async (event) => {
       throw new Error(data.message || "No se pudo publicar el vehiculo");
     }
 
-    setMsg("Vehiculo publicado correctamente", "ok");
-
+    setMsg("Se creo satisfactoriamente el vehiculo.", "ok");
     window.setTimeout(() => {
       window.location.href = `./vehicle.html?id=${data._id}`;
-    }, 700);
+    }, 2200);
   } catch (error) {
     console.error(error);
     setMsg(error.message || "No se pudo publicar el vehiculo", "err");
