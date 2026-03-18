@@ -6,6 +6,37 @@ window.TicoAutos.bindNavigation();
 
 const container = document.getElementById("myVehicleList");
 
+// DELETE /api/vehicles/:id
+const deleteVehicleRequest = async (vehicleId) => {
+  const response = await fetch(`${window.TicoAutos.API_BASE}/api/vehicles/${vehicleId}`, {
+    method: "DELETE",
+    headers: window.TicoAutos.getAuthHeaders(),
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.message || "No se pudo eliminar");
+  }
+};
+
+// PATCH /api/vehicles/:id/status
+const updateVehicleStatusRequest = async (vehicleId, status) => {
+  const response = await fetch(`${window.TicoAutos.API_BASE}/api/vehicles/${vehicleId}/status`, {
+    method: "PATCH",
+    headers: {
+      ...window.TicoAutos.getAuthHeaders(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ status }),
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.message || "No se pudo actualizar el estado");
+  }
+};
+
+// GET /api/vehicles/mine
 const loadMyVehicles = async () => {
   container.innerHTML = '<div class="empty-state">Cargando tus vehiculos...</div>';
 
@@ -41,35 +72,22 @@ const loadMyVehicles = async () => {
             return;
           }
 
-          const deleteResponse = await fetch(`${window.TicoAutos.API_BASE}/api/vehicles/${item._id}`, {
-            method: "DELETE",
-            headers: window.TicoAutos.getAuthHeaders(),
-          });
-          const deleteData = await deleteResponse.json().catch(() => ({}));
-
-          if (!deleteResponse.ok) {
-            return alert(deleteData.message || "No se pudo eliminar");
+          try {
+            await deleteVehicleRequest(item._id);
+            loadMyVehicles();
+          } catch (error) {
+            alert(error.message || "No se pudo eliminar");
           }
-
-          loadMyVehicles();
         },
         onSold: async (item) => {
           const nextStatus = item.status === "vendido" ? "disponible" : "vendido";
-          const soldResponse = await fetch(`${window.TicoAutos.API_BASE}/api/vehicles/${item._id}/status`, {
-            method: "PATCH",
-            headers: {
-              ...window.TicoAutos.getAuthHeaders(),
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ status: nextStatus }),
-          });
-          const soldData = await soldResponse.json().catch(() => ({}));
 
-          if (!soldResponse.ok) {
-            return alert(soldData.message || "No se pudo actualizar el estado");
+          try {
+            await updateVehicleStatusRequest(item._id, nextStatus);
+            loadMyVehicles();
+          } catch (error) {
+            alert(error.message || "No se pudo actualizar el estado");
           }
-
-          loadMyVehicles();
         },
       });
 

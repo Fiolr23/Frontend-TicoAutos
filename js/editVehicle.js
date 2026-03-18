@@ -13,11 +13,13 @@ const submitButton = document.getElementById("vehicleSubmit");
 const imageList = document.getElementById("currentImages");
 const title = document.getElementById("editorTitle");
 
+// Muestra mensajes del formulario.
 const setMsg = (text, type = "") => {
   msg.textContent = text;
   msg.className = `msg ${type}`.trim();
 };
 
+// Renderiza las imagenes actuales y permite decidir cuales conservar.
 const renderCurrentImages = (images = []) => {
   imageList.innerHTML = "";
 
@@ -38,6 +40,7 @@ const renderCurrentImages = (images = []) => {
   });
 };
 
+// Rellena el formulario con los datos actuales del vehiculo.
 const fillForm = (vehicle) => {
   title.textContent = `Editar ${vehicle.brand} ${vehicle.model}`;
   form.elements.namedItem("brand").value = vehicle.brand || "";
@@ -53,6 +56,36 @@ const fillForm = (vehicle) => {
   renderCurrentImages(vehicle.images || []);
 };
 
+// GET /api/vehicles/:id
+const fetchVehicleById = async () => {
+  const response = await fetch(`${window.TicoAutos.API_BASE}/api/vehicles/${vehicleId}`);
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.message || "No se pudo cargar el vehiculo");
+  }
+
+  return data;
+};
+
+// PUT /api/vehicles/:id
+const updateVehicleRequest = async () => {
+  const formData = new FormData(form);
+  const response = await fetch(`${window.TicoAutos.API_BASE}/api/vehicles/${vehicleId}`, {
+    method: "PUT",
+    headers: window.TicoAutos.getAuthHeaders(),
+    body: formData,
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || "No se pudo actualizar el vehiculo");
+  }
+
+  return data;
+};
+
+// Carga el vehiculo y confirma que el usuario sea el propietario.
 const loadVehicle = async () => {
   if (!vehicleId) {
     setMsg("No se encontro el vehiculo a editar", "err");
@@ -61,12 +94,7 @@ const loadVehicle = async () => {
   }
 
   try {
-    const response = await fetch(`${window.TicoAutos.API_BASE}/api/vehicles/${vehicleId}`);
-    const vehicle = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(vehicle.message || "No se pudo cargar el vehiculo");
-    }
+    const vehicle = await fetchVehicleById();
 
     const owner = vehicle.owner || vehicle.userId;
     const currentUserId = await window.TicoAutos.syncSessionUser();
@@ -82,6 +110,7 @@ const loadVehicle = async () => {
   }
 };
 
+// Envía los cambios del formulario al endpoint REST de actualizacion.
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   setMsg("");
@@ -90,17 +119,7 @@ form.addEventListener("submit", async (event) => {
   submitButton.textContent = "Guardando...";
 
   try {
-    const formData = new FormData(form);
-    const response = await fetch(`${window.TicoAutos.API_BASE}/api/vehicles/${vehicleId}`, {
-      method: "PUT",
-      headers: window.TicoAutos.getAuthHeaders(),
-      body: formData,
-    });
-
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(data.message || "No se pudo actualizar el vehiculo");
-    }
+    await updateVehicleRequest();
 
     setMsg("Cambios guardados correctamente", "ok");
     window.setTimeout(() => {
